@@ -39,10 +39,26 @@ const selectors = {
  * @returns {element} 
  */ 
 
-class BookPreview {
-  constructor(book) {
-    this.book = book;
-    this.element = this.createPreviewElement();
+class BookPreview extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this.book = null;
+  }
+
+  connectedCallback() {
+    this.render();
+  }
+
+  static get observedAttributes() {
+    return ['book'];
+  }
+
+  attributeChangedCallback(name, oldValue, newValue) {
+    if (name === 'book') {
+      this.book = JSON.parse(newValue);
+      this.updatePreviewContent();
+    }
   }
 
   createPreviewElement() {
@@ -62,33 +78,84 @@ class BookPreview {
     return element;
   }
 
-  getElement() {
-    return this.element;
-  }
-
-  getBook() {
-    return this.book;
-  }
-
-  updateBook(book) {
-    this.book = book;
-    this.updatePreviewContent();
-  }
-
   updatePreviewContent() {
     const { author, image, title } = this.book;
-    this.element.querySelector('.preview__image').src = image;
-    this.element.querySelector('.preview__title').innerText = title;
-    this.element.querySelector('.preview__author').innerText = authors[author];
+    this.shadowRoot.querySelector('.preview__image').src = image;
+    this.shadowRoot.querySelector('.preview__title').innerText = title;
+    this.shadowRoot.querySelector('.preview__author').innerText = authors[author];
   }
-}
+
+  render() {
+    this.shadowRoot.innerHTML = `
+      <style>
+      .preview {
+        border-width: 0;
+        width: 100%;
+        font-family: Roboto, sans-serif;
+        padding: 0.5rem 1rem;
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        text-align: left;
+        border-radius: 8px;
+        border: 1px solid rgba(var(--color-dark), 0.15);
+        background: rgba(var(--color-light), 1);
+      }
+      @media (min-width: 60rem) {
+        .preview {
+          padding: 1rem;
+        }
+      }
+      
+      .preview_hidden {
+        display: none;
+      }
+      
+      .preview:hover {
+        background: rgba(var(--color-blue), 0.05);
+      }
+      
+      .preview__image {
+        width: 48px;
+        height: 70px;
+        object-fit: cover;
+        background: grey;
+        border-radius: 2px;
+        box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2),
+          0px 1px 1px 0px rgba(0, 0, 0, 0.1), 0px 1px 3px 0px rgba(0, 0, 0, 0.1);
+      }
+      
+      .preview__info {
+        padding: 1rem;
+      }
+      .preview__title {
+        margin: 0 0 0.5rem;
+        font-weight: bold;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;  
+        overflow: hidden;
+        color: rgba(var(--color-dark), 0.8)
+      }
+      
+      .preview__author {
+        color: rgba(var(--color-dark), 0.4);
+      }
+      </style>
+      ${this.createPreviewElement().outerHTML}
+    `;
+  }
+};
+
+customElements.define('book-preview', BookPreview);
 
 // Modify the createBookPreview function to use the BookPreview class
 function createBookPreview(book) {
-  return new BookPreview(book).getElement();
+  const previewElement = document.createElement('book-preview');
+  previewElement.setAttribute('book', JSON.stringify(book));
+  return previewElement;
 }
-
-// Creating initial book previews and append them to the list
+// Creating initial book previews and appending them to the list
 const starting = document.createDocumentFragment();
 
 for (const book of matches.slice(0, BOOKS_PER_PAGE)) {
@@ -105,9 +172,9 @@ function handleListButtonClicked() {
   const end = (page + 1) * BOOKS_PER_PAGE;
 
   const previews = matches.slice(start, end).map((book) => {
-    const preview = new BookPreview(book);
-    fragment.appendChild(preview.getElement());
-    return preview;
+    const previewElement = createBookPreview(book);
+    fragment.appendChild(previewElement);
+    return previewElement;
   });
 
   appendItemsToList(fragment);
